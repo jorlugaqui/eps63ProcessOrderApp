@@ -1,5 +1,6 @@
 import os
 import boto3
+import epsagon
 import json
 import logging
 import requests
@@ -14,8 +15,16 @@ logs_session = boto3.Session(
     aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
 )
 
+epsagon.init(
+    token=os.environ.get('EPSAGON_KEY'),
+    app_name='order_app',
+    metadata_only=False
+)
+
+app = Flask(__name__)
+epsagon.flask_wrapper(app)
+
 logging.basicConfig(level=logging.INFO)
-app = Flask("loggable")
 handler = watchtower.CloudWatchLogHandler(boto3_session=logs_session)
 app.logger.addHandler(handler)
 logging.getLogger("werkzeug").addHandler(handler)
