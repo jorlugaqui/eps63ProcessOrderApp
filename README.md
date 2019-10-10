@@ -1,50 +1,95 @@
-**Process Order API**
+# Process Order API
 
-This is a very small API (one endpoint) written with Flask framework, for academic purposes. 
+The **eps63_process_order_app** is a very small API (one endpoint) written with the Flask Framework (Python 3.7). The `/process_order` endpoint acts as a callback of the SNS subscription. So when the [eps63_order_app](https://github.com/jorlugaqui/eps63_order_app) post a message to the SNS topic, the endpoint procceses the actual order. The endpoint asumes there will be always enough stock and thus it generates a payment´s intent.
 
-The `/process_order` endpoint will verify the stock of a product and will generate a payment on Stripe
+## How to run it?
 
-*How to run it*
+### Requirements
 
-Local:
+1. AWS credentials.
+2. SNS topic already created.
+3. An email´s subscription to the topic.
+4. Epsagon API Key.
+5. Stripe API Key
 
-`AWS_ACCESS_KEY=<your_aws_access_key> AWS_SECRET_ACCESS_KEY=<your_aws_secret_key> STRIPE_API_KEY=<your_stripe_api_key> EPSAGON_KEY=<your_epsagon_key> FLASK_APP=app.py flask run`
+### Virtual environment - Local - Flask development server
+
+1. `pip install virtualenv`
+2. `virtualenv env --python=python3.7`
+3. `source env/bin/activate`
+4. `pip install -r requirements.txt`
+5. `AWS_ACCESS_KEY=<your_aws_access_key> AWS_SECRET_ACCESS_KEY=<your_aws_secret_key> STRIPE_API_KEY=<your_stripe_api_key> EPSAGON_KEY=<your_epsagon_key> FLASK_APP=app.py flask run`
 
 POST http://localhost:5000/process_order
 
 `
 {
- "order": "1",
- "product": "Nike",
- "amount": 400
+    "Message": {
+        "order": "1",
+        "product": "Nike",
+        "amount": 400
+    }
 }
 `
+### Virtual environment - Local - Gunicorn
 
-Prod:
-
-`AWS_ACCESS_KEY=<your_aws_access_key> AWS_SECRET_ACCESS_KEY=<your_aws_secret_key> STRIPE_API_KEY=<your_stripe_api_key> EPSAGON_KEY=<your_epsagon_key> gunicorn --bind 0.0.0.0:8000 wsgi:app`
+1. `pip install virtualenv`
+2. `virtualenv env --python=python3.7`
+3. `source env/bin/activate`
+4. `pip install -r requirements.txt`
+5. `AWS_ACCESS_KEY=<your_aws_access_key> AWS_SECRET_ACCESS_KEY=<your_aws_secret_key> STRIPE_API_KEY=<your_stripe_api_key> EPSAGON_KEY=<your_epsagon_key> gunicorn --bind 0.0.0.0:8000 wsgi:app`
 
 POST http://localhost:8000/process_order
 
 `
 {
- "order": "1",
- "product": "Nike",
- "amount": 400
+    "Message": {
+        "order": "1",
+        "product": "Nike",
+        "amount": 400
+    }
 }
 `
 
-Docker:
+### Docker - Local - Gunicorn
 
-`docker build -t <your-namespace>/process_order .`
+1. `docker build -t <your-repo>/process_order .`
+2. `docker run -p 8000:8000 -e AWS_ACCESS_KEY=<your_aws_access_key> -e AWS_SECRET_ACCESS_KEY=<your_aws_secret_key> -e STRIPE_API_KEY=<your_stripe_api_key> -e EPSAGON_KEY=<your_epsagon_key> --rm <your-namespace>/process_order`
 
-`docker run -p 8000:8000 -e AWS_ACCESS_KEY=<your_aws_access_key> -e AWS_SECRET_ACCESS_KEY=<your_aws_secret_key> -e STRIPE_API_KEY=<your_stripe_api_key> -e EPSAGON_KEY=<your_epsagon_key> --rm <your-namespace>/process_order`
-
-POST http://localhost:8000/process_order
+POST http://<your_local_ip>:8000/process_order
 `
 {
- "order": "1",
- "product": "Nike",
- "amount": 400
+    "Message": {
+        "order": "1",
+        "product": "Nike",
+        "amount": 400
+    }
 }
 `
+
+### Docker - AWS - Gunicorn - Fargate (Use your own zone)
+
+1. Create a repository on AWS ECR (https://us-east-2.console.aws.amazon.com/ecr/get-started?region=us-east-2)
+2. Get authenticated against AWS $(aws ecr get-login --no-include-email --region us-east-2)
+3. `docker tag <your-repo>:process_order_app <owner_id>.dkr.ecr.us-east-2.amazonaws.com/<your_repo>:latest`
+4. `docker push <owner_id>.dkr.ecr.us-east-2.amazonaws.com/<your_repo>:process_order_app`
+5. Create a task definition and run it following https://epsagon.com/blog/deploying-java-spring-boot-on-aws-fargate/
+6. Hit the endpoint
+
+POST http://<AWS_FARGATE_IP>:8000/process_order
+
+`
+{
+    "Message": {
+        "order": "1",
+        "product": "Nike",
+        "amount": 400
+    }
+}
+`
+
+### Connecting the SNS subscription with the endpoint
+
+Once you get the public IP provided by AWS Fargate, you can create an HTTP subscription. By adding the IP and port you will connect both applications (order_app, process_order_app) in a publisher / consumer fashion.
+
+In all cases, you should see payments created on the Stripe dashboard.
